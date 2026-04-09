@@ -1,0 +1,73 @@
+flowchart TB
+    subgraph PHASE1["🚀 PHASE 1: INITIATION"]
+        P1_1[User submits requirements]
+        P1_2[CTO analyzes requirements]
+        P1_3[CTO creates technical roadmap]
+        P1_4[CTO identifies departments]
+        P1_1 --> P1_2 --> P1_3 --> P1_4
+    end
+    
+    subgraph PHASE2["📋 PHASE 2: PLANNING"]
+        P2_1[CTO assigns to Dept Heads]
+        P2_2[Dept Heads analyze & plan]
+        P2_3[Dept Heads report to CTO]
+        P2_4[CTO approves plans]
+        P2_1 --> P2_2 --> P2_3 --> P2_4
+    end
+    
+    subgraph PHASE3["⚙️ PHASE 3: EXECUTION"]
+        P3_1[Dept Heads assign to Workers]
+        P3_2[Workers execute tasks]
+        P3_3[Workers report progress]
+        P3_4[Dept Heads provide guidance]
+        P3_1 --> P3_2 --> P3_3 --> P3_4
+        P3_4 -.->|Iterate| P3_2
+    end
+    
+    subgraph PHASE4["🧪 PHASE 4: QUALITY ASSURANCE"]
+        P4_1[Workers submit to Dept Heads]
+        P4_2[Dept Heads review]
+        P4_3[QA performs testing]
+        P4_4{Issues found?}
+        P4_5[Send back for fixes]
+        P4_1 --> P4_2 --> P4_3 --> P4_4
+        P4_4 -->|Yes| P4_5
+        P4_5 -.->|Return to| P3_2
+        P4_4 -->|No| P4_6[QA approves]
+    end
+    
+    subgraph PHASE5["✅ PHASE 5: DELIVERY"]
+        P5_1[Dept Heads report to CTO]
+        P5_2[CTO reviews deliverables]
+        P5_3{CTO approves?}
+        P5_4[CTO delivers to User]
+        P5_5[Project complete]
+        P5_1 --> P5_2 --> P5_3
+        P5_3 -->|No| P5_6[Request changes]
+        P5_6 -.->|Return to| P3_2
+        P5_3 -->|Yes| P5_4 --> P5_5
+    end
+    
+    PHASE1 --> PHASE2 --> PHASE3 --> PHASE4 --> PHASE5
+    
+    %% Communication Flow Annotations
+    CF1[📡 Top-Down:<br/>Directive Flow]
+    CF2[📡 Bottom-Up:<br/>Reporting Flow]
+    CF3[📡 Horizontal:<br/>Collaboration Flow]
+    
+    CF1 -.->|CTO → Dept Head → Worker| PHASE3
+    CF2 -.->|Worker → Dept Head → CTO| PHASE4
+    CF3 -.->|Cross-department| PHASE3
+    
+    %% Styling
+    classDef phase fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef process fill:#fff3e0,stroke:#f57c00,stroke-width:1px
+    classDef decision fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef complete fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef comm fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
+    
+    class PHASE1,PHASE2,PHASE3,PHASE4,PHASE5 phase
+    class P1_1,P1_2,P1_3,P1_4,P2_1,P2_2,P2_3,P2_4,P3_1,P3_2,P3_3,P3_4,P4_1,P4_2,P4_3,P4_5,P4_6,P5_1,P5_2,P5_4,P5_5,P5_6 process
+    class P4_4,P5_3 decision
+    class P5_5 complete
+    class CF1,CF2,CF3 comm

@@ -1,0 +1,1104 @@
+# Hierarchical Agent Workflow Design
+## MCP Agents - Corporate Structure Workflow & State Management
+
+---
+
+## 1. ภาพรวมระบบ (System Overview)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        HIERARCHICAL AGENT ARCHITECTURE                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│    ┌──────────────┐                                                          │
+│    │     CTO      │  ← Strategic Planning & Task Assignment                 │
+│    │   (Level 1)  │                                                          │
+│    └──────┬───────┘                                                          │
+│           │ Delegates & Monitors                                              │
+│           ▼                                                                  │
+│    ┌──────────────┬──────────────┬──────────────┐                           │
+│    │  Tech Lead   │  Product Mgr │  DevOps Lead │  ← Department Heads       │
+│    │  (Level 2)   │   (Level 2)  │   (Level 2)  │                           │
+│    └──────┬───────┴──────┬───────┴──────┬───────┘                           │
+│           │              │              │                                    │
+│           ▼              ▼              ▼                                    │
+│    ┌──────────────┬──────────────┬──────────────┐                           │
+│    │  Developers  │   Analysts   │  Operations  │  ← Workers                 │
+│    │  (Level 3)   │   (Level 3)  │   (Level 3)  │                           │
+│    └──────────────┴──────────────┴──────────────┘                           │
+│                                                                              │
+│    Communication Flow: Upward Reporting & Downward Delegation               │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Task State Machine Definition
+
+### 2.1 Task States
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TASK STATE LIFECYCLE                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│    ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐             │
+│    │  DRAFT  │────▶│ PENDING │────▶│ASSIGNED │────▶│IN_PROG  │             │
+│    └─────────┘     └─────────┘     └─────────┘     └────┬────┘             │
+│         ▲                                               │                   │
+│         │                                               ▼                   │
+│         │                                          ┌─────────┐              │
+│         │                                          │ BLOCKED │              │
+│         │                                          └────┬────┘              │
+│         │                                               │                   │
+│         │          ┌─────────┐     ┌─────────┐         │                   │
+│         └──────────│COMPLETED│◀────│REVIEWING│◀────────┘                   │
+│                    └────┬────┘     └─────────┘                              │
+│                         │                                                   │
+│                         ▼                                                   │
+│              ┌─────────────────────┐                                        │
+│              │      APPROVED       │                                        │
+│              │  (Quality Passed)   │                                        │
+│              └──────────┬──────────┘                                        │
+│                         │                                                   │
+│                         ▼                                                   │
+│              ┌─────────────────────┐                                        │
+│              │      REJECTED       │                                        │
+│              │  (Needs Revision)   │                                        │
+│              └──────────┬──────────┘                                        │
+│                         │                                                   │
+│                         ▼                                                   │
+│              ┌─────────────────────┐                                        │
+│              │       CLOSED        │                                        │
+│              │  (Finalized Task)   │                                        │
+│              └─────────────────────┘                                        │
+│                                                                              │
+│    Additional States:                                                        │
+│    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐                      │
+│    │  ERROR  │  │ TIMEOUT │  │CANCELLED│  │ARCHIVED │                      │
+│    └─────────┘  └─────────┘  └─────────┘  └─────────┘                      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 State Definitions
+
+| State | Code | Description | Allowed Transitions |
+|-------|------|-------------|---------------------|
+| **DRAFT** | `DRAFT` | Task created but not yet submitted | → PENDING, CANCELLED |
+| **PENDING** | `PENDING` | Task awaiting assignment | → ASSIGNED, CANCELLED |
+| **ASSIGNED** | `ASSIGNED` | Task assigned to worker | → IN_PROGRESS, REJECTED |
+| **IN_PROGRESS** | `IN_PROGRESS` | Worker actively working on task | → REVIEWING, BLOCKED, ERROR |
+| **BLOCKED** | `BLOCKED` | Task blocked by dependency/issue | → IN_PROGRESS, ERROR |
+| **REVIEWING** | `REVIEWING` | Task completed, awaiting review | → APPROVED, REJECTED |
+| **APPROVED** | `APPROVED` | Task passed quality review | → CLOSED, ERROR |
+| **REJECTED** | `REJECTED` | Task failed review, needs rework | → IN_PROGRESS, CANCELLED |
+| **COMPLETED** | `COMPLETED` | Task successfully finished | → CLOSED |
+| **CLOSED** | `CLOSED` | Task finalized and archived | → ARCHIVED |
+| **ERROR** | `ERROR` | Task encountered unrecoverable error | → IN_PROGRESS, CANCELLED |
+| **TIMEOUT** | `TIMEOUT` | Task exceeded time limit | → IN_PROGRESS, CANCELLED |
+| **CANCELLED** | `CANCELLED` | Task cancelled before completion | → ARCHIVED |
+| **ARCHIVED** | `ARCHIVED` | Task stored for historical reference | (Terminal State) |
+
+### 2.3 State Transition Rules
+
+```python
+STATE_TRANSITIONS = {
+    "DRAFT": ["PENDING", "CANCELLED"],
+    "PENDING": ["ASSIGNED", "CANCELLED"],
+    "ASSIGNED": ["IN_PROGRESS", "REJECTED"],
+    "IN_PROGRESS": ["REVIEWING", "BLOCKED", "ERROR", "TIMEOUT"],
+    "BLOCKED": ["IN_PROGRESS", "ERROR", "CANCELLED"],
+    "REVIEWING": ["APPROVED", "REJECTED"],
+    "APPROVED": ["CLOSED", "ERROR"],
+    "REJECTED": ["IN_PROGRESS", "CANCELLED"],
+    "COMPLETED": ["CLOSED"],
+    "CLOSED": ["ARCHIVED"],
+    "ERROR": ["IN_PROGRESS", "CANCELLED"],
+    "TIMEOUT": ["IN_PROGRESS", "CANCELLED"],
+    "CANCELLED": ["ARCHIVED"],
+    "ARCHIVED": []  # Terminal state
+}
+```
+
+---
+
+## 3. Agent Level Workflows
+
+### 3.1 CTO Level Workflow (Level 1 - Strategic)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       CTO LEVEL WORKFLOW                                     │
+│                    (Strategic Planning & Oversight)                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────┐                                                         │
+│  │  START: Receive │                                                         │
+│  │  Business Goals │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Analyze Goals  │  ← Break down into strategic objectives                │
+│  │  & Requirements │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Create Epic    │  ← High-level task containers                          │
+│  │  Tasks          │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐     ┌─────────────────┐                                │
+│  │  Prioritize     │────▶│  Assign to      │                                │
+│  │  & Schedule     │     │  Department     │                                │
+│  │                 │     │  Heads          │                                │
+│  └─────────────────┘     └────────┬────────┘                                │
+│                                   │                                          │
+│                                   ▼                                          │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │              MONITORING & CONTROL LOOP                   │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Collect │───▶│ Analyze │───▶│ Decide  │             │                │
+│  │  │ Reports │    │ Progress│    │ Actions │             │                │
+│  │  └─────────┘    └─────────┘    └────┬────┘             │                │
+│  │                                     │                   │                │
+│  │  Actions:                           ▼                   │                │
+│  │  • Reassign tasks              ┌─────────┐             │                │
+│  │  • Adjust priorities    ─────▶│ Execute │             │                │
+│  │  • Escalate issues             └─────────┘             │                │
+│  │  • Provide guidance                                     │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                                   │                                          │
+│                                   ▼                                          │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │              ESCALATION HANDLING                         │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Receive │───▶│ Assess  │───▶│ Resolve │             │                │
+│  │  │Escalation   ││ Impact  │    │ or      │             │                │
+│  │  └─────────┘    └─────────┘    │ Delegate│             │                │
+│  │                                └─────────┘             │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                                   │                                          │
+│                                   ▼                                          │
+│  ┌─────────────────┐                                                         │
+│  │  FINAL: Report  │  ← Executive summary to stakeholders                   │
+│  │  to Stakeholders│                                                         │
+│  └─────────────────┘                                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### CTO Workflow States & Actions
+
+| State | Actions | Outputs |
+|-------|---------|---------|
+| **Goal Analysis** | Parse requirements, identify dependencies | Epic list, Resource requirements |
+| **Task Creation** | Create high-level tasks, define success criteria | Epic tasks with acceptance criteria |
+| **Delegation** | Assign to appropriate department heads | Assignment notifications |
+| **Monitoring** | Track progress, review reports | Status dashboard, Alerts |
+| **Escalation** | Handle critical issues, make decisions | Resolution actions |
+| **Reporting** | Compile results, report to stakeholders | Executive reports |
+
+---
+
+### 3.2 Department Head Level Workflow (Level 2 - Tactical)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    DEPARTMENT HEAD LEVEL WORKFLOW                            │
+│                     (Task Management & Quality Control)                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────┐                                                         │
+│  │  START: Receive │                                                         │
+│  │  Task from CTO  │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Validate Task  │  ← Check completeness and feasibility                  │
+│  │  Requirements   │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│     ┌─────┴─────┐                                                            │
+│     │           │                                                            │
+│     ▼           ▼                                                            │
+│  ┌──────┐   ┌──────┐                                                         │
+│  │ACCEPT│   │REJECT│  ← Request clarification from CTO                      │
+│  └──┬───┘   └──┬───┘                                                         │
+│     │          │                                                             │
+│     ▼          │                                                             │
+│  ┌─────────────────┐                                                         │
+│  │  Decompose Task │  ← Break into subtasks                                 │
+│  │  into Subtasks  │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Estimate &     │  ← Assign time/resources                               │
+│  │  Plan Resources │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐     ┌─────────────────┐                                │
+│  │  Assign to      │────▶│  Monitor Worker │                                │
+│  │  Workers        │     │  Progress       │                                │
+│  └─────────────────┘     └────────┬────────┘                                │
+│                                   │                                          │
+│                                   ▼                                          │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │              QUALITY CONTROL GATE                        │                │
+│  │                                                         │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Receive │───▶│ Validate│───▶│ Decision│             │                │
+│  │  │ Subtask │    │ Quality │    │         │             │                │
+│  │  │ Result  │    │         │    │         │             │                │
+│  │  └─────────┘    └────┬────┘    └────┬────┘             │                │
+│  │                      │              │                   │                │
+│  │                 ┌────┴────┐    ┌────┴────┐              │                │
+│  │                 │  PASS   │    │  FAIL   │              │                │
+│  │                 └────┬────┘    └────┬────┘              │                │
+│  │                      │              │                   │                │
+│  │                      ▼              ▼                   │                │
+│  │                 ┌─────────┐    ┌─────────┐              │                │
+│  │                 │ Approve │    │ Request │              │                │
+│  │                 │ & Report│    │ Rework  │              │                │
+│  │                 └─────────┘    └─────────┘              │                │
+│  │                                                         │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                                   │                                          │
+│                                   ▼                                          │
+│  ┌─────────────────┐                                                         │
+│  │  Report to CTO  │  ← Aggregate results, escalate issues                  │
+│  │  with Results   │                                                         │
+│  └─────────────────┘                                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Department Head Workflow States & Actions
+
+| State | Actions | Outputs |
+|-------|---------|---------|
+| **Task Validation** | Review requirements, assess feasibility | Validation report |
+| **Task Decomposition** | Break into subtasks, define dependencies | Subtask list |
+| **Resource Planning** | Estimate effort, allocate resources | Resource plan |
+| **Worker Assignment** | Match tasks to worker skills | Assignment list |
+| **Progress Monitoring** | Track worker progress, provide support | Status updates |
+| **Quality Validation** | Review completed work against criteria | Approval/Rejection |
+| **Reporting** | Compile results, report to CTO | Department report |
+
+---
+
+### 3.3 Worker Level Workflow (Level 3 - Operational)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         WORKER LEVEL WORKFLOW                                │
+│                        (Task Execution & Delivery)                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────┐                                                         │
+│  │  START: Receive │                                                         │
+│  │  Assigned Task  │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Analyze Task   │  ← Understand requirements                             │
+│  │  Requirements   │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│     ┌─────┴─────┐                                                            │
+│     │           │                                                            │
+│     ▼           ▼                                                            │
+│  ┌──────┐   ┌──────┐                                                         │
+│  │ACCEPT│   │REJECT│  ← Report issue to Dept Head                           │
+│  └──┬───┘   └──┬───┘                                                         │
+│     │          │                                                             │
+│     ▼          │                                                             │
+│  ┌─────────────────┐                                                         │
+│  │  Plan Execution │  ← Design approach, identify dependencies              │
+│  │  Approach       │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Execute Task   │  ← Perform work with progress updates                  │
+│  │                 │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │              EXECUTION CHECKPOINTS                       │                │
+│  │                                                         │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Progress│───▶│ Check   │───▶│ Continue│             │                │
+│  │  │ Update  │    │ Blockers│    │ or      │             │                │
+│  │  │ (25%)   │    │         │    │ Escalate│             │                │
+│  │  └─────────┘    └─────────┘    └─────────┘             │                │
+│  │                                                         │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Progress│───▶│ Check   │───▶│ Continue│             │                │
+│  │  │ Update  │    │ Blockers│    │ or      │             │                │
+│  │  │ (50%)   │    │         │    │ Escalate│             │                │
+│  │  └─────────┘    └─────────┘    └─────────┘             │                │
+│  │                                                         │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Progress│───▶│ Check   │───▶│ Continue│             │                │
+│  │  │ Update  │    │ Blockers│    │ or      │             │                │
+│  │  │ (75%)   │    │         │    │ Escalate│             │                │
+│  │  └─────────┘    └─────────┘    └─────────┘             │                │
+│  │                                                         │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                                   │                                          │
+│                                   ▼                                          │
+│  ┌─────────────────┐                                                         │
+│  │  Self-Validate  │  ← Check against acceptance criteria                   │
+│  │  Results        │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Submit for     │  ← Package deliverables                                │
+│  │  Review         │                                                         │
+│  └─────────────────┘                                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Worker Workflow States & Actions
+
+| State | Actions | Outputs |
+|-------|---------|---------|
+| **Task Analysis** | Review requirements, clarify doubts | Understanding confirmation |
+| **Execution Planning** | Design approach, identify dependencies | Execution plan |
+| **Task Execution** | Perform work, update progress | Work artifacts |
+| **Progress Reporting** | Report status at checkpoints | Progress updates |
+| **Self-Validation** | Test against acceptance criteria | Validation results |
+| **Submission** | Package and submit deliverables | Completed task |
+
+---
+
+## 4. Task Assignment & Delegation Process
+
+### 4.1 Delegation Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      TASK DELEGATION FLOW                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  LEVEL 1 (CTO)                                                               │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  1. Create Epic Task                                        │            │
+│  │     ├── task_id: EPIC-001                                   │            │
+│  │     ├── priority: HIGH                                      │            │
+│  │     ├── department: ENGINEERING                             │            │
+│  │     └── assignee: tech_lead_001                             │            │
+│  │                                                             │            │
+│  │  2. Set Delegation Parameters                               │            │
+│  │     ├── max_delegation_depth: 2                            │            │
+│  │     ├── approval_required: true                            │            │
+│  │     ├── auto_approve_threshold: 0.8                        │            │
+│  │     └── escalation_threshold: 0.5                          │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│                              │                                               │
+│                              ▼                                               │
+│  LEVEL 2 (Department Head)                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  3. Receive & Validate Epic                                 │            │
+│  │     ├── Validate requirements completeness                  │            │
+│  │     ├── Assess resource availability                        │            │
+│  │     └── Accept or Reject                                    │            │
+│  │                                                             │            │
+│  │  4. Decompose into Subtasks                                 │            │
+│  │     ├── subtask_1: Design Phase → dev_001                   │            │
+│  │     ├── subtask_2: Implementation → dev_002                 │            │
+│  │     └── subtask_3: Testing → qa_001                         │            │
+│  │                                                             │            │
+│  │  5. Set Worker Instructions                                 │            │
+│  │     ├── acceptance_criteria: [...]                          │            │
+│  │     ├── deadline: 2024-01-15                                │            │
+│  │     └── quality_threshold: 0.9                              │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│                              │                                               │
+│                              ▼                                               │
+│  LEVEL 3 (Worker)                                                            │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  6. Execute Assigned Subtask                                │            │
+│  │     ├── Understand requirements                             │            │
+│  │     ├── Execute with progress updates                       │            │
+│  │     └── Self-validate results                               │            │
+│  │                                                             │            │
+│  │  7. Submit for Review                                       │            │
+│  │     ├── Package deliverables                                │            │
+│  │     ├── Submit to Department Head                           │            │
+│  │     └── Await feedback                                      │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│                              │                                               │
+│                              ▼                                               │
+│  REPORTING CHAIN (Upward)                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Worker → Dept Head: Task completion with results           │            │
+│  │  Dept Head → CTO: Aggregated department report              │            │
+│  │  CTO → Stakeholders: Executive summary                      │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.2 Delegation Parameters
+
+```python
+DELEGATION_CONFIG = {
+    "cto_level": {
+        "can_delegate_to": ["department_head"],
+        "max_concurrent_tasks": 20,
+        "escalation_rules": {
+            "timeout_hours": 48,
+            "quality_threshold": 0.85,
+            "auto_escalate_on_error": True
+        }
+    },
+    "department_head_level": {
+        "can_delegate_to": ["senior_worker", "worker"],
+        "max_concurrent_tasks": 15,
+        "review_required": True,
+        "escalation_rules": {
+            "timeout_hours": 24,
+            "quality_threshold": 0.90,
+            "auto_escalate_on_block": True
+        }
+    },
+    "worker_level": {
+        "can_delegate_to": [],  # Terminal level
+        "max_concurrent_tasks": 5,
+        "escalation_rules": {
+            "timeout_hours": 8,
+            "block_threshold": 0.3,
+            "auto_request_help": True
+        }
+    }
+}
+```
+
+---
+
+## 5. Validation & Approval Process
+
+### 5.1 Quality Gates
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      QUALITY GATE FRAMEWORK                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  GATE 1: REQUIREMENTS VALIDATION                                             │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │  Checklist:                                             │                │
+│  │  [✓] Clear acceptance criteria defined                  │                │
+│  │  [✓] Dependencies identified                            │                │
+│  │  [✓] Resources allocated                                │                │
+│  │  [✓] Timeline realistic                                 │                │
+│  │                                                         │                │
+│  │  Result: PASS → Proceed to Assignment                   │                │
+│  │          FAIL → Return to Planning                      │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                              │                                               │
+│                              ▼                                               │
+│  GATE 2: WORKER SELF-VALIDATION                                              │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │  Checklist:                                             │                │
+│  │  [✓] All acceptance criteria met                        │                │
+│  │  [✓] Unit tests passing                                 │                │
+│  │  [✓] Documentation complete                             │                │
+│  │  [✓] No critical errors                                 │                │
+│  │                                                         │                │
+│  │  Result: PASS → Submit for Review                       │                │
+│  │          FAIL → Continue Work                           │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                              │                                               │
+│                              ▼                                               │
+│  GATE 3: DEPARTMENT HEAD REVIEW                                              │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │  Checklist:                                             │                │
+│  │  [✓] Code/Work quality meets standards                  │                │
+│  │  [✓] Requirements fully implemented                     │                │
+│  │  [✓] Testing adequate                                   │                │
+│  │  [✓] Documentation reviewed                             │                │
+│  │                                                         │                │
+│  │  Scoring:                                               │                │
+│  │  0.90-1.00: APPROVE → Report to CTO                     │                │
+│  │  0.70-0.89: CONDITIONAL → Minor fixes required          │                │
+│  │  0.00-0.69: REJECT → Return for rework                  │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                              │                                               │
+│                              ▼                                               │
+│  GATE 4: CTO FINAL APPROVAL                                                  │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │  Checklist:                                             │                │
+│  │  [✓] All subtasks completed                             │                │
+│  │  [✓] Quality metrics meet targets                       │                │
+│  │  [✓] Integration successful                             │                │
+│  │  [✓] Business objectives achieved                       │                │
+│  │                                                         │                │
+│  │  Result: APPROVE → Close Epic                           │                │
+│  │          REJECT → Escalate for resolution               │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 Approval Matrix
+
+| Level | Can Approve | Quality Threshold | Review Time |
+|-------|-------------|-------------------|-------------|
+| Worker | Self-validation only | 0.80 | N/A |
+| Department Head | Subtask completion | 0.90 | 2-4 hours |
+| CTO | Epic completion | 0.85 | 4-8 hours |
+
+---
+
+## 6. Error Handling & Retry Mechanism
+
+### 6.1 Error Classification
+
+```python
+ERROR_TYPES = {
+    "RECOVERABLE": {
+        "description": "Errors that can be fixed with retry",
+        "examples": ["timeout", "temporary_failure", "resource_unavailable"],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential",
+            "initial_delay": 5,  # seconds
+            "max_delay": 300     # seconds
+        }
+    },
+    "VALIDATION_ERROR": {
+        "description": "Errors in task validation",
+        "examples": ["incomplete_requirements", "invalid_input", "scope_mismatch"],
+        "retry_policy": {
+            "max_retries": 1,
+            "action": "return_to_sender"
+        }
+    },
+    "EXECUTION_ERROR": {
+        "description": "Errors during task execution",
+        "examples": ["runtime_error", "dependency_failure", "resource_exhaustion"],
+        "retry_policy": {
+            "max_retries": 2,
+            "action": "escalate_if_failed"
+        }
+    },
+    "CRITICAL_ERROR": {
+        "description": "Unrecoverable errors requiring intervention",
+        "examples": ["system_failure", "security_breach", "data_corruption"],
+        "retry_policy": {
+            "max_retries": 0,
+            "action": "immediate_escalation"
+        }
+    }
+}
+```
+
+### 6.2 Error Handling Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      ERROR HANDLING WORKFLOW                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────┐                                                         │
+│  │  Error Detected │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │  Classify Error │  ← Determine error type                                │
+│  │  Type           │                                                         │
+│  └────────┬────────┘                                                         │
+│           │                                                                  │
+│     ┌─────┼─────┬─────────┬─────────┐                                        │
+│     │     │     │         │         │                                        │
+│     ▼     ▼     ▼         ▼         ▼                                        │
+│  ┌────┐┌────┐┌────┐   ┌────┐   ┌────┐                                       │
+│  │RECV││VAL ││EXEC│   │CRIT│   │UNKN│                                       │
+│  │ABLE││ERR ││ERR │   │ICAL│   │OWN │                                       │
+│  └──┬─┘└─┬──┘└─┬──┘   └─┬──┘   └─┬──┘                                       │
+│     │    │     │        │        │                                           │
+│     ▼    ▼     ▼        ▼        ▼                                           │
+│  ┌─────────────────────────────────────────────────────────┐                │
+│  │              ERROR RESPONSE ACTIONS                      │                │
+│  │                                                         │                │
+│  │  RECOVERABLE:                                           │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Retry   │───▶│ Wait    │───▶│ Retry   │             │                │
+│  │  │ Attempt │    │ Backoff │    │ Task    │             │                │
+│  │  └────┬────┘    └─────────┘    └────┬────┘             │                │
+│  │       │                              │                  │                │
+│  │       │ Success                      │ Max retries      │                │
+│  │       ▼                              ▼                  │                │
+│  │  ┌─────────┐                    ┌─────────┐             │                │
+│  │  │ Resume  │                    │Escalate │             │                │
+│  │  │ Normal  │                    │ to Dept │             │                │
+│  │  │ Flow    │                    │ Head    │             │                │
+│  │  └─────────┘                    └─────────┘             │                │
+│  │                                                         │                │
+│  │  VALIDATION/EXECUTION ERROR:                            │                │
+│  │  ┌─────────┐    ┌─────────┐                            │                │
+│  │  │ Return  │───▶│ Request │                            │                │
+│  │  │ to      │    │ Clarif- │                            │                │
+│  │  │ Sender  │    │ ication │                            │                │
+│  │  └─────────┘    └─────────┘                            │                │
+│  │                                                         │                │
+│  │  CRITICAL ERROR:                                        │                │
+│  │  ┌─────────┐    ┌─────────┐    ┌─────────┐             │                │
+│  │  │ Stop    │───▶│ Notify  │───▶│ Escalate│             │                │
+│  │  │ All     │    │ All     │    │ to CTO  │             │                │
+│  │  │ Related │    │ Levels  │    │         │             │                │
+│  │  │ Tasks   │    │         │    │         │             │                │
+│  │  └─────────┘    └─────────┘    └─────────┘             │                │
+│  │                                                         │                │
+│  └─────────────────────────────────────────────────────────┘                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.3 Retry Configuration
+
+```python
+RETRY_CONFIG = {
+    "exponential_backoff": {
+        "formula": "delay = min(initial_delay * (2 ** attempt), max_delay)",
+        "jitter": True,  # Add randomness to prevent thundering herd
+        "jitter_range": (0.5, 1.5)
+    },
+    "retry_conditions": {
+        "retry_on": [
+            "TimeoutError",
+            "ConnectionError",
+            "TemporaryFailure",
+            "ResourceUnavailable"
+        ],
+        "dont_retry_on": [
+            "ValidationError",
+            "PermissionError",
+            "CriticalError"
+        ]
+    },
+    "circuit_breaker": {
+        "failure_threshold": 5,
+        "recovery_timeout": 60,
+        "half_open_max_calls": 3
+    }
+}
+```
+
+---
+
+## 7. Communication Protocol
+
+### 7.1 Message Types
+
+```python
+MESSAGE_TYPES = {
+    "TASK_ASSIGNMENT": {
+        "from": ["CTO", "DepartmentHead"],
+        "to": ["DepartmentHead", "Worker"],
+        "priority": "HIGH",
+        "requires_ack": True
+    },
+    "PROGRESS_UPDATE": {
+        "from": ["Worker", "DepartmentHead"],
+        "to": ["DepartmentHead", "CTO"],
+        "priority": "NORMAL",
+        "requires_ack": False
+    },
+    "COMPLETION_REPORT": {
+        "from": ["Worker"],
+        "to": ["DepartmentHead"],
+        "priority": "HIGH",
+        "requires_ack": True
+    },
+    "ESCALATION": {
+        "from": ["Worker", "DepartmentHead"],
+        "to": ["DepartmentHead", "CTO"],
+        "priority": "URGENT",
+        "requires_ack": True
+    },
+    "APPROVAL_REQUEST": {
+        "from": ["Worker", "DepartmentHead"],
+        "to": ["DepartmentHead", "CTO"],
+        "priority": "HIGH",
+        "requires_ack": True
+    },
+    "FEEDBACK": {
+        "from": ["DepartmentHead", "CTO"],
+        "to": ["Worker", "DepartmentHead"],
+        "priority": "NORMAL",
+        "requires_ack": True
+    }
+}
+```
+
+### 7.2 Message Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      COMMUNICATION FLOW DIAGRAM                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  DOWNWARD FLOW (Delegation)                                                  │
+│  ══════════════════════════                                                  │
+│                                                                              │
+│  CTO ───────[TASK_ASSIGNMENT]──────▶ Department Head                        │
+│                                              │                               │
+│                                              ▼                               │
+│                              [TASK_ASSIGNMENT]                               │
+│                                              │                               │
+│                                              ▼                               │
+│                                           Worker                             │
+│                                                                              │
+│  UPWARD FLOW (Reporting)                                                     │
+│  ════════════════════════                                                    │
+│                                                                              │
+│  CTO ◀──────[COMPLETION_REPORT]───── Department Head                        │
+│         ◀────[ESCALATION]──────┘            ▲                               │
+│                                             │                                │
+│                              [COMPLETION_REPORT]                             │
+│                                             │                                │
+│                                             ▼                                │
+│                                           Worker                             │
+│                              [ESCALATION]────┘                               │
+│                                                                              │
+│  HORIZONTAL FLOW (Coordination)                                              │
+│  ════════════════════════════════                                            │
+│                                                                              │
+│  Dept Head A ◀────[COORDINATION]────▶ Dept Head B                           │
+│       │                                    │                                 │
+│       │         [DEPENDENCY_REQUEST]       │                                 │
+│       └────────────────▶───────────────────┘                                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Task Lifecycle Complete Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    COMPLETE TASK LIFECYCLE FLOW                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  PHASE 1: CREATION                                                           │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │  CTO    │───▶│ Creates │───▶│  Task   │                                  │
+│  │         │    │  Epic   │    │  DRAFT  │                                  │
+│  └─────────┘    └─────────┘    └────┬────┘                                  │
+│                                     │                                        │
+│                                     ▼                                        │
+│  PHASE 2: DELEGATION                                                         │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │  CTO    │───▶│ Assigns │───▶│  Task   │                                  │
+│  │         │    │ to Dept │    │ PENDING │                                  │
+│  └─────────┘    │  Head   │    └────┬────┘                                  │
+│                 └─────────┘         │                                        │
+│                                     ▼                                        │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │  Dept   │───▶│ Accepts │───▶│  Task   │                                  │
+│  │  Head   │    │  Task   │    │ ASSIGNED│                                  │
+│  └─────────┘    └─────────┘    └────┬────┘                                  │
+│                                     │                                        │
+│                                     ▼                                        │
+│  PHASE 3: EXECUTION                                                          │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │  Dept   │───▶│ Assigns │───▶│  Task   │                                  │
+│  │  Head   │    │ to Worker    │IN_PROG  │                                  │
+│  └─────────┘    └─────────┘    └────┬────┘                                  │
+│                                     │                                        │
+│                                     ▼                                        │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │  Worker │───▶│ Executes│───▶│ Progress│                                  │
+│  │         │    │  Task   │    │ Updates │                                  │
+│  └─────────┘    └─────────┘    └────┬────┘                                  │
+│                                     │                                        │
+│                                     ▼                                        │
+│  PHASE 4: REVIEW                                                             │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │  Worker │───▶│ Submits │───▶│  Task   │                                  │
+│  │         │    │  Result │    │REVIEWING│                                  │
+│  └─────────┘    └─────────┘    └────┬────┘                                  │
+│                                     │                                        │
+│                    ┌────────────────┴────────────────┐                       │
+│                    │                                 │                       │
+│                    ▼                                 ▼                       │
+│              ┌─────────┐                       ┌─────────┐                   │
+│              │APPROVED │                       │REJECTED │                   │
+│              └────┬────┘                       └────┬────┘                   │
+│                   │                                 │                        │
+│                   ▼                                 ▼                        │
+│  PHASE 5: COMPLETION                                                         │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │  Dept   │───▶│ Reports │───▶│  Task   │                                  │
+│  │  Head   │    │ to CTO  │    │COMPLETED│                                  │
+│  └─────────┘    └─────────┘    └────┬────┘                                  │
+│                                     │                                        │
+│                                     ▼                                        │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                                  │
+│  │   CTO   │───▶│ Final   │───▶│  Task   │                                  │
+│  │         │    │ Review  │    │ CLOSED  │                                  │
+│  └─────────┘    └─────────┘    └─────────┘                                  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Implementation Classes
+
+### 9.1 Core Data Structures
+
+```python
+from enum import Enum
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Any
+from datetime import datetime
+
+class TaskStatus(Enum):
+    DRAFT = "draft"
+    PENDING = "pending"
+    ASSIGNED = "assigned"
+    IN_PROGRESS = "in_progress"
+    BLOCKED = "blocked"
+    REVIEWING = "reviewing"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    COMPLETED = "completed"
+    CLOSED = "closed"
+    ERROR = "error"
+    TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
+    ARCHIVED = "archived"
+
+class AgentLevel(Enum):
+    CTO = 1
+    DEPARTMENT_HEAD = 2
+    WORKER = 3
+
+@dataclass
+class Task:
+    id: str
+    title: str
+    description: str
+    status: TaskStatus
+    priority: str
+    creator_id: str
+    assignee_id: Optional[str]
+    parent_id: Optional[str]
+    acceptance_criteria: List[str]
+    created_at: datetime
+    updated_at: datetime
+    deadline: Optional[datetime]
+    metadata: Dict[str, Any]
+    history: List[Dict[str, Any]]
+
+@dataclass
+class Agent:
+    id: str
+    name: str
+    level: AgentLevel
+    department: str
+    skills: List[str]
+    max_concurrent_tasks: int
+    current_tasks: List[str]
+    supervisor_id: Optional[str]
+    subordinates: List[str]
+    performance_metrics: Dict[str, float]
+```
+
+### 9.2 State Manager
+
+```python
+class TaskStateManager:
+    """Manages task state transitions and validation"""
+    
+    STATE_TRANSITIONS = {
+        TaskStatus.DRAFT: [TaskStatus.PENDING, TaskStatus.CANCELLED],
+        TaskStatus.PENDING: [TaskStatus.ASSIGNED, TaskStatus.CANCELLED],
+        TaskStatus.ASSIGNED: [TaskStatus.IN_PROGRESS, TaskStatus.REJECTED],
+        TaskStatus.IN_PROGRESS: [TaskStatus.REVIEWING, TaskStatus.BLOCKED, 
+                                  TaskStatus.ERROR, TaskStatus.TIMEOUT],
+        TaskStatus.BLOCKED: [TaskStatus.IN_PROGRESS, TaskStatus.ERROR, 
+                             TaskStatus.CANCELLED],
+        TaskStatus.REVIEWING: [TaskStatus.APPROVED, TaskStatus.REJECTED],
+        TaskStatus.APPROVED: [TaskStatus.CLOSED, TaskStatus.ERROR],
+        TaskStatus.REJECTED: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED],
+        TaskStatus.COMPLETED: [TaskStatus.CLOSED],
+        TaskStatus.CLOSED: [TaskStatus.ARCHIVED],
+        TaskStatus.ERROR: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED],
+        TaskStatus.TIMEOUT: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED],
+        TaskStatus.CANCELLED: [TaskStatus.ARCHIVED],
+        TaskStatus.ARCHIVED: []
+    }
+    
+    def can_transition(self, task: Task, new_status: TaskStatus) -> bool:
+        """Check if state transition is valid"""
+        return new_status in self.STATE_TRANSITIONS.get(task.status, [])
+    
+    def transition(self, task: Task, new_status: TaskStatus, 
+                   reason: str, actor_id: str) -> Task:
+        """Perform state transition with validation"""
+        if not self.can_transition(task, new_status):
+            raise ValueError(
+                f"Invalid transition from {task.status} to {new_status}"
+            )
+        
+        old_status = task.status
+        task.status = new_status
+        task.updated_at = datetime.now()
+        
+        # Record in history
+        task.history.append({
+            "timestamp": datetime.now().isoformat(),
+            "from_status": old_status.value,
+            "to_status": new_status.value,
+            "reason": reason,
+            "actor_id": actor_id
+        })
+        
+        return task
+```
+
+### 9.3 Delegation Manager
+
+```python
+class DelegationManager:
+    """Manages task delegation between agent levels"""
+    
+    DELEGATION_RULES = {
+        AgentLevel.CTO: {
+            "can_delegate_to": [AgentLevel.DEPARTMENT_HEAD],
+            "max_depth": 2,
+            "requires_approval": True
+        },
+        AgentLevel.DEPARTMENT_HEAD: {
+            "can_delegate_to": [AgentLevel.WORKER],
+            "max_depth": 1,
+            "requires_approval": False
+        },
+        AgentLevel.WORKER: {
+            "can_delegate_to": [],
+            "max_depth": 0,
+            "requires_approval": False
+        }
+    }
+    
+    def can_delegate(self, from_agent: Agent, to_agent: Agent) -> bool:
+        """Check if delegation is allowed"""
+        rules = self.DELEGATION_RULES.get(from_agent.level)
+        if not rules:
+            return False
+        return to_agent.level in rules["can_delegate_to"]
+    
+    def delegate_task(self, task: Task, from_agent: Agent, 
+                      to_agent: Agent) -> Task:
+        """Delegate task to another agent"""
+        if not self.can_delegate(from_agent, to_agent):
+            raise PermissionError(
+                f"{from_agent.level} cannot delegate to {to_agent.level}"
+            )
+        
+        task.assignee_id = to_agent.id
+        task.status = TaskStatus.ASSIGNED
+        task.updated_at = datetime.now()
+        
+        # Update agent task lists
+        from_agent.current_tasks.remove(task.id)
+        to_agent.current_tasks.append(task.id)
+        
+        return task
+```
+
+### 9.4 Quality Validator
+
+```python
+class QualityValidator:
+    """Validates task completion quality"""
+    
+    QUALITY_THRESHOLDS = {
+        AgentLevel.WORKER: 0.80,
+        AgentLevel.DEPARTMENT_HEAD: 0.90,
+        AgentLevel.CTO: 0.85
+    }
+    
+    def validate(self, task: Task, validator_level: AgentLevel) -> Dict[str, Any]:
+        """Validate task against acceptance criteria"""
+        results = {
+            "passed": [],
+            "failed": [],
+            "score": 0.0,
+            "recommendation": ""
+        }
+        
+        # Check each acceptance criterion
+        for criterion in task.acceptance_criteria:
+            # Validation logic here
+            pass
+        
+        # Calculate score
+        total = len(task.acceptance_criteria)
+        passed = len(results["passed"])
+        results["score"] = passed / total if total > 0 else 0
+        
+        # Determine recommendation
+        threshold = self.QUALITY_THRESHOLDS[validator_level]
+        if results["score"] >= threshold:
+            results["recommendation"] = "APPROVE"
+        elif results["score"] >= threshold * 0.8:
+            results["recommendation"] = "CONDITIONAL"
+        else:
+            results["recommendation"] = "REJECT"
+        
+        return results
+```
+
+---
+
+## 10. Summary
+
+### Key Design Principles
+
+1. **Hierarchical Structure**: Clear chain of command from CTO → Department Heads → Workers
+2. **State-Driven**: All task progress tracked through well-defined states
+3. **Quality Gates**: Multiple validation points ensure work quality
+4. **Error Resilience**: Comprehensive error handling with retry mechanisms
+5. **Transparent Communication**: Clear message flows between all levels
+6. **Audit Trail**: Complete history tracking for all state changes
+
+### Workflow Summary
+
+| Level | Primary Responsibilities | Key States |
+|-------|-------------------------|------------|
+| **CTO** | Strategic planning, delegation, oversight | Creates → Monitors → Approves → Reports |
+| **Department Head** | Task decomposition, assignment, quality control | Validates → Decomposes → Assigns → Reviews → Reports |
+| **Worker** | Task execution, self-validation, submission | Analyzes → Plans → Executes → Validates → Submits |
+
+### State Transition Summary
+
+```
+DRAFT → PENDING → ASSIGNED → IN_PROGRESS → REVIEWING → APPROVED → CLOSED → ARCHIVED
+                ↗           ↘              ↘            ↘
+         REJECTED ←────────── BLOCKED ←─── ERROR ←──── REJECTED
+```
+
+---
+
+*Document Version: 1.0*
+*Last Updated: 2024*
+*Author: Workflow Engineer*

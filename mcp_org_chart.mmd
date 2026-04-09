@@ -1,0 +1,136 @@
+graph TB
+    %% CTO Level
+    USER[👤 User/Client]
+    CTO[👔 CTO Agent<br/>Chief Technology Officer]
+    
+    %% Department Heads Level
+    FE_HEAD[🎨 Frontend Head<br/>Department Manager]
+    BE_HEAD[⚙️ Backend Head<br/>Department Manager]
+    DEVOPS_HEAD[🚀 DevOps Head<br/>Department Manager]
+    QA_HEAD[🧪 QA Head<br/>Department Manager]
+    PM_HEAD[📋 PM Head<br/>Department Manager]
+    
+    %% Frontend Workers
+    REACT[⚛️ React Agent]
+    VUE[🟢 Vue Agent]
+    CSS[🎨 CSS Agent]
+    UIUX[✨ UI/UX Agent]
+    
+    %% Backend Workers
+    API[🔌 API Agent]
+    DB[🗄️ Database Agent]
+    AUTH[🔐 Auth Agent]
+    INTEGRATION[🔗 Integration Agent]
+    
+    %% DevOps Workers
+    CICD[🔄 CI/CD Agent]
+    INFRA[☁️ Infrastructure Agent]
+    MONITOR[📊 Monitoring Agent]
+    SEC[🔒 Security Agent]
+    
+    %% QA Workers
+    TEST[📝 Test Agent]
+    AUTO[🤖 Automation Agent]
+    PERF[⚡ Performance Agent]
+    SEC_TEST[🛡️ Security Test Agent]
+    
+    %% PM Workers
+    REQ[📄 Requirements Agent]
+    TASK[📌 Task Agent]
+    DOC[📚 Documentation Agent]
+    COMM[💬 Communication Agent]
+    
+    %% Reporting Structure - Top Down
+    USER -->|Submit Requirements| CTO
+    CTO -->|Assign Tasks| FE_HEAD
+    CTO -->|Assign Tasks| BE_HEAD
+    CTO -->|Assign Tasks| DEVOPS_HEAD
+    CTO -->|Assign Tasks| QA_HEAD
+    CTO -->|Assign Tasks| PM_HEAD
+    
+    %% Frontend Department
+    FE_HEAD -->|Delegate| REACT
+    FE_HEAD -->|Delegate| VUE
+    FE_HEAD -->|Delegate| CSS
+    FE_HEAD -->|Delegate| UIUX
+    
+    %% Backend Department
+    BE_HEAD -->|Delegate| API
+    BE_HEAD -->|Delegate| DB
+    BE_HEAD -->|Delegate| AUTH
+    BE_HEAD -->|Delegate| INTEGRATION
+    
+    %% DevOps Department
+    DEVOPS_HEAD -->|Delegate| CICD
+    DEVOPS_HEAD -->|Delegate| INFRA
+    DEVOPS_HEAD -->|Delegate| MONITOR
+    DEVOPS_HEAD -->|Delegate| SEC
+    
+    %% QA Department
+    QA_HEAD -->|Delegate| TEST
+    QA_HEAD -->|Delegate| AUTO
+    QA_HEAD -->|Delegate| PERF
+    QA_HEAD -->|Delegate| SEC_TEST
+    
+    %% PM Department
+    PM_HEAD -->|Delegate| REQ
+    PM_HEAD -->|Delegate| TASK
+    PM_HEAD -->|Delegate| DOC
+    PM_HEAD -->|Delegate| COMM
+    
+    %% Reporting Structure - Bottom Up
+    REACT -->|Report| FE_HEAD
+    VUE -->|Report| FE_HEAD
+    CSS -->|Report| FE_HEAD
+    UIUX -->|Report| FE_HEAD
+    
+    API -->|Report| BE_HEAD
+    DB -->|Report| BE_HEAD
+    AUTH -->|Report| BE_HEAD
+    INTEGRATION -->|Report| BE_HEAD
+    
+    CICD -->|Report| DEVOPS_HEAD
+    INFRA -->|Report| DEVOPS_HEAD
+    MONITOR -->|Report| DEVOPS_HEAD
+    SEC -->|Report| DEVOPS_HEAD
+    
+    TEST -->|Report| QA_HEAD
+    AUTO -->|Report| QA_HEAD
+    PERF -->|Report| QA_HEAD
+    SEC_TEST -->|Report| QA_HEAD
+    
+    REQ -->|Report| PM_HEAD
+    TASK -->|Report| PM_HEAD
+    DOC -->|Report| PM_HEAD
+    COMM -->|Report| PM_HEAD
+    
+    %% Department Head to CTO Reporting
+    FE_HEAD -->|Progress Report| CTO
+    BE_HEAD -->|Progress Report| CTO
+    DEVOPS_HEAD -->|Progress Report| CTO
+    QA_HEAD -->|Test Report| CTO
+    PM_HEAD -->|Status Report| CTO
+    
+    %% Final Delivery
+    CTO -->|Deliver Result| USER
+    
+    %% Cross-Department Collaboration
+    FE_HEAD <-.->|API Contract| BE_HEAD
+    BE_HEAD <-.->|Deploy| DEVOPS_HEAD
+    FE_HEAD <-.->|Test| QA_HEAD
+    BE_HEAD <-.->|Test| QA_HEAD
+    PM_HEAD <-.->|Coordinate| FE_HEAD
+    PM_HEAD <-.->|Coordinate| BE_HEAD
+    PM_HEAD <-.->|Coordinate| DEVOPS_HEAD
+    PM_HEAD <-.->|Coordinate| QA_HEAD
+    
+    %% Styling
+    classDef executive fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px,color:#fff
+    classDef management fill:#4ecdc4,stroke:#087f5b,stroke-width:2px,color:#fff
+    classDef worker fill:#45b7d1,stroke:#1864ab,stroke-width:1px,color:#fff
+    classDef external fill:#96ceb4,stroke:#2f9e44,stroke-width:2px,color:#fff
+    
+    class USER external
+    class CTO executive
+    class FE_HEAD,BE_HEAD,DEVOPS_HEAD,QA_HEAD,PM_HEAD management
+    class REACT,VUE,CSS,UIUX,API,DB,AUTH,INTEGRATION,CICD,INFRA,MONITOR,SEC,TEST,AUTO,PERF,SEC_TEST,REQ,TASK,DOC,COMM worker

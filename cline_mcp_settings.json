@@ -1,0 +1,140 @@
+{
+  "mcpServers": {
+    "orchestrator": {
+      "command": "node",
+      "args": [
+        "/Users/username/kimi-mcp-agents/src/mcp-servers/orchestrator-server.js"
+      ],
+      "env": {
+        "KIMI_API_KEY": "${KIMI_API_KEY}",
+        "MCP_PORT": "3000",
+        "AGENT_MAX_DEPTH": "3",
+        "LOG_LEVEL": "info"
+      },
+      "disabled": false,
+      "autoApprove": [],
+      "timeout": 30000
+    },
+    "planner": {
+      "command": "node",
+      "args": [
+        "/Users/username/kimi-mcp-agents/src/mcp-servers/planner-server.js"
+      ],
+      "env": {
+        "KIMI_API_KEY": "${KIMI_API_KEY}",
+        "MCP_PORT": "3001",
+        "PLANNER_MODE": "hierarchical",
+        "LOG_LEVEL": "info"
+      },
+      "disabled": false,
+      "autoApprove": [],
+      "timeout": 30000
+    },
+    "coder": {
+      "command": "node",
+      "args": [
+        "/Users/username/kimi-mcp-agents/src/mcp-servers/coder-server.js"
+      ],
+      "env": {
+        "KIMI_API_KEY": "${KIMI_API_KEY}",
+        "MCP_PORT": "3002",
+        "CODE_STYLE": "standard",
+        "LOG_LEVEL": "info"
+      },
+      "disabled": false,
+      "autoApprove": [],
+      "timeout": 60000
+    },
+    "researcher": {
+      "command": "node",
+      "args": [
+        "/Users/username/kimi-mcp-agents/src/mcp-servers/research-server.js"
+      ],
+      "env": {
+        "KIMI_API_KEY": "${KIMI_API_KEY}",
+        "MCP_PORT": "3003",
+        "SEARCH_PROVIDER": "brave",
+        "LOG_LEVEL": "info"
+      },
+      "disabled": false,
+      "autoApprove": [],
+      "timeout": 45000
+    }
+  },
+  "hierarchicalConfig": {
+    "levels": [
+      {
+        "level": 1,
+        "name": "orchestrator",
+        "description": "Main coordinator for all tasks",
+        "capabilities": [
+          "task_decomposition",
+          "agent_coordination",
+          "result_aggregation"
+        ],
+        "childAgents": ["planner", "coder", "researcher"],
+        "maxDepth": 3
+      },
+      {
+        "level": 2,
+        "name": "planner",
+        "description": "Task planning and strategy",
+        "capabilities": [
+          "task_breakdown",
+          "dependency_analysis",
+          "timeline_estimation"
+        ],
+        "childAgents": [],
+        "maxDepth": 2
+      },
+      {
+        "level": 2,
+        "name": "coder",
+        "description": "Code generation and implementation",
+        "capabilities": [
+          "code_generation",
+          "code_review",
+          "refactoring",
+          "debugging"
+        ],
+        "childAgents": [],
+        "maxDepth": 2
+      },
+      {
+        "level": 2,
+        "name": "researcher",
+        "description": "Information gathering and analysis",
+        "capabilities": [
+          "web_search",
+          "data_analysis",
+          "summarization"
+        ],
+        "childAgents": [],
+        "maxDepth": 2
+      }
+    ],
+    "communication": {
+      "protocol": "mcp",
+      "messageFormat": "json",
+      "contextSharing": true,
+      "errorPropagation": true
+    },
+    "taskRouting": {
+      "defaultAgent": "orchestrator",
+      "routingRules": [
+        {
+          "pattern": "plan|strategy|roadmap|timeline",
+          "targetAgent": "planner"
+        },
+        {
+          "pattern": "code|implement|develop|program|function|class",
+          "targetAgent": "coder"
+        },
+        {
+          "pattern": "research|find|search|analyze|investigate",
+          "targetAgent": "researcher"
+        }
+      ]
+    }
+  }
+}

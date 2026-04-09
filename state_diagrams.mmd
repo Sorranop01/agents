@@ -1,0 +1,342 @@
+# Hierarchical Agent Workflow - Mermaid Diagrams
+# These diagrams can be rendered using Mermaid.js
+
+# =============================================================================
+# 1. TASK STATE MACHINE DIAGRAM
+# =============================================================================
+
+stateDiagram-v2
+    [*] --> DRAFT : Create Task
+    
+    DRAFT --> PENDING : Submit
+    DRAFT --> CANCELLED : Cancel
+    
+    PENDING --> ASSIGNED : Assign
+    PENDING --> CANCELLED : Cancel
+    
+    ASSIGNED --> IN_PROGRESS : Start
+    ASSIGNED --> REJECTED : Reject Assignment
+    
+    IN_PROGRESS --> REVIEWING : Submit
+    IN_PROGRESS --> BLOCKED : Block
+    IN_PROGRESS --> ERROR : Error
+    IN_PROGRESS --> TIMEOUT : Timeout
+    
+    BLOCKED --> IN_PROGRESS : Unblock
+    BLOCKED --> ERROR : Unrecoverable
+    BLOCKED --> CANCELLED : Cancel
+    
+    REVIEWING --> APPROVED : Approve
+    REVIEWING --> REJECTED : Reject
+    
+    APPROVED --> CLOSED : Close
+    APPROVED --> ERROR : Post-approval Error
+    
+    REJECTED --> IN_PROGRESS : Rework
+    REJECTED --> CANCELLED : Cancel
+    
+    COMPLETED --> CLOSED : Close
+    
+    CLOSED --> ARCHIVED : Archive
+    
+    ERROR --> IN_PROGRESS : Retry
+    ERROR --> CANCELLED : Cancel
+    
+    TIMEOUT --> IN_PROGRESS : Resume
+    TIMEOUT --> CANCELLED : Cancel
+    
+    CANCELLED --> ARCHIVED : Archive
+    
+    ARCHIVED --> [*] : End
+
+# =============================================================================
+# 2. HIERARCHICAL AGENT STRUCTURE
+# =============================================================================
+
+graph TD
+    CTO[CTO<br/>Strategic Planning] --> TL[Tech Lead<br/>Department Head]
+    CTO --> PM[Product Manager<br/>Department Head]
+    CTO --> DO[DevOps Lead<br/>Department Head]
+    
+    TL --> DEV1[Developer 1<br/>Worker]
+    TL --> DEV2[Developer 2<br/>Worker]
+    TL --> DEV3[Developer 3<br/>Worker]
+    
+    PM --> ANA1[Analyst 1<br/>Worker]
+    PM --> ANA2[Analyst 2<br/>Worker]
+    
+    DO --> OPS1[Operations 1<br/>Worker]
+    DO --> OPS2[Operations 2<br/>Worker]
+    
+    style CTO fill:#ff9999,stroke:#333,stroke-width:2px
+    style TL fill:#99ccff,stroke:#333,stroke-width:2px
+    style PM fill:#99ccff,stroke:#333,stroke-width:2px
+    style DO fill:#99ccff,stroke:#333,stroke-width:2px
+    style DEV1 fill:#99ff99,stroke:#333,stroke-width:1px
+    style DEV2 fill:#99ff99,stroke:#333,stroke-width:1px
+    style DEV3 fill:#99ff99,stroke:#333,stroke-width:1px
+
+# =============================================================================
+# 3. CTO LEVEL WORKFLOW
+# =============================================================================
+
+flowchart TD
+    Start([Start]) --> Receive[Receive Business Goals]
+    Receive --> Analyze[Analyze Goals & Requirements]
+    Analyze --> Create[Create Epic Tasks]
+    Create --> Prioritize[Prioritize & Schedule]
+    Prioritize --> Assign[Assign to Department Heads]
+    Assign --> Monitor{Monitor Progress}
+    
+    Monitor -->|Progress Update| AnalyzeProgress[Analyze Progress]
+    AnalyzeProgress --> Decide{Decision}
+    
+    Decide -->|On Track| Monitor
+    Decide -->|Issues| Reassign[Reassign/Adjust]
+    Decide -->|Critical| Escalate[Escalate Issues]
+    
+    Reassign --> Monitor
+    Escalate --> Monitor
+    
+    Monitor -->|Complete| Report[Report to Stakeholders]
+    Report --> End([End])
+
+# =============================================================================
+# 4. DEPARTMENT HEAD LEVEL WORKFLOW
+# =============================================================================
+
+flowchart TD
+    Start([Start]) --> Receive[Receive Task from CTO]
+    Receive --> Validate{Validate Requirements}
+    
+    Validate -->|Accept| Decompose[Decompose into Subtasks]
+    Validate -->|Reject| RequestClarify[Request Clarification]
+    RequestClarify --> Receive
+    
+    Decompose --> Plan[Estimate & Plan Resources]
+    Plan --> Assign[Assign to Workers]
+    Assign --> Monitor{Monitor Progress}
+    
+    Monitor -->|Progress| Update[Update Status]
+    Update --> Monitor
+    
+    Monitor -->|Complete| Review{Quality Review}
+    
+    Review -->|Pass| Approve[Approve & Report]
+    Review -->|Fail| RequestRework[Request Rework]
+    RequestRework --> Assign
+    
+    Approve --> ReportCTO[Report to CTO]
+    ReportCTO --> End([End])
+
+# =============================================================================
+# 5. WORKER LEVEL WORKFLOW
+# =============================================================================
+
+flowchart TD
+    Start([Start]) --> Receive[Receive Assigned Task]
+    Receive --> Analyze[Analyze Requirements]
+    Analyze --> Accept{Accept Task?}
+    
+    Accept -->|Yes| Plan[Plan Execution]
+    Accept -->|No| ReportIssue[Report Issue]
+    ReportIssue --> End([End])
+    
+    Plan --> Execute[Execute Task]
+    Execute --> Checkpoint{Progress Check}
+    
+    Checkpoint -->|25%| Check25[Check Blockers]
+    Checkpoint -->|50%| Check50[Check Blockers]
+    Checkpoint -->|75%| Check75[Check Blockers]
+    Checkpoint -->|100%| SelfValidate[Self-Validate]
+    
+    Check25 -->|Blocked| Escalate[Escalate Issue]
+    Check25 -->|Continue| Execute
+    Check50 -->|Blocked| Escalate
+    Check50 -->|Continue| Execute
+    Check75 -->|Blocked| Escalate
+    Check75 -->|Continue| Execute
+    
+    Escalate --> Execute
+    
+    SelfValidate --> ValidateResult{Validation Result}
+    ValidateResult -->|Pass| Submit[Submit for Review]
+    ValidateResult -->|Fail| Execute
+    
+    Submit --> End
+
+# =============================================================================
+# 6. ERROR HANDLING FLOW
+# =============================================================================
+
+flowchart TD
+    Error[Error Detected] --> Classify[Classify Error]
+    Classify --> Type{Error Type}
+    
+    Type -->|Recoverable| Retry{Retry Count}
+    Type -->|Validation| Return[Return to Sender]
+    Type -->|Execution| RetryExec{Retry Count}
+    Type -->|Critical| EscalateCrit[Immediate Escalation]
+    
+    Retry -->|Under Limit| CalcDelay[Calculate Delay]
+    CalcDelay --> Wait[Wait & Retry]
+    Wait --> Resume[Resume Task]
+    
+    Retry -->|Max Reached| EscalateRec[Escalate to Supervisor]
+    RetryExec -->|Under Limit| RetryExecAction[Retry Execution]
+    RetryExec -->|Max Reached| EscalateExec[Escalate to Supervisor]
+    
+    Return --> Request[Request Clarification]
+    EscalateCrit --> Notify[Notify All Levels]
+    EscalateRec --> Supervisor[Supervisor Review]
+    EscalateExec --> Supervisor
+    
+    Resume --> Error
+    Request --> Error
+    Notify --> Stop[Stop Related Tasks]
+    Supervisor --> Decide{Decision}
+    Decide -->|Reassign| Reassign[Reassign Task]
+    Decide -->|Cancel| Cancel[Cancel Task]
+
+# =============================================================================
+# 7. COMPLETE TASK LIFECYCLE
+# =============================================================================
+
+sequenceDiagram
+    participant CTO as CTO
+    participant DH as Department Head
+    participant W as Worker
+    
+    rect rgb(230, 245, 255)
+        Note over CTO: Phase 1: Creation
+        CTO->>CTO: Create Epic Task
+        CTO->>CTO: Submit Task (DRAFT→PENDING)
+    end
+    
+    rect rgb(255, 245, 230)
+        Note over CTO,DH: Phase 2: Delegation L1→L2
+        CTO->>DH: Assign Task (PENDING→ASSIGNED)
+        DH->>DH: Validate & Decompose
+    end
+    
+    rect rgb(230, 255, 230)
+        Note over DH,W: Phase 3: Delegation L2→L3
+        DH->>W: Assign Subtask (ASSIGNED)
+        W->>W: Start Work (IN_PROGRESS)
+    end
+    
+    rect rgb(255, 255, 230)
+        Note over W: Phase 4: Execution
+        W->>W: Execute with Checkpoints
+        W->>W: Self-Validate
+        W->>DH: Submit for Review (REVIEWING)
+    end
+    
+    rect rgb(255, 230, 245)
+        Note over DH: Phase 5: Review
+        DH->>DH: Quality Validation
+        alt Approved
+            DH->>DH: Approve Task (APPROVED)
+        else Rejected
+            DH->>W: Request Rework (REJECTED→IN_PROGRESS)
+            W->>DH: Resubmit
+        end
+    end
+    
+    rect rgb(245, 230, 255)
+        Note over CTO,DH: Phase 6: Reporting
+        DH->>CTO: Report Completion
+        CTO->>CTO: Final Review
+        CTO->>CTO: Close Task (CLOSED)
+        CTO->>CTO: Archive Task (ARCHIVED)
+    end
+
+# =============================================================================
+# 8. QUALITY GATES
+# =============================================================================
+
+flowchart TD
+    Start([Start]) --> Gate1[Gate 1: Requirements Validation]
+    
+    Gate1 --> Check1{Check Criteria}
+    Check1 -->|Pass| Gate2[Gate 2: Worker Self-Validation]
+    Check1 -->|Fail| Revise1[Revise Requirements]
+    Revise1 --> Gate1
+    
+    Gate2 --> Check2{Check Criteria}
+    Check2 -->|Pass| Gate3[Gate 3: Dept Head Review]
+    Check2 -->|Fail| ContinueWork[Continue Work]
+    ContinueWork --> Gate2
+    
+    Gate3 --> Check3{Quality Score}
+    Check3 -->|≥0.90| Approve1[APPROVE]
+    Check3 -->|0.70-0.89| Conditional[CONDITIONAL]
+    Check3 -->|<0.70| Reject1[REJECT]
+    
+    Conditional --> MinorFix[Minor Fixes]
+    MinorFix --> Gate3
+    
+    Reject1 --> Rework[Rework Required]
+    Rework --> Gate2
+    
+    Approve1 --> Gate4[Gate 4: CTO Final Approval]
+    Gate4 --> Check4{Check Completion}
+    Check4 -->|Pass| Close[CLOSE TASK]
+    Check4 -->|Fail| Escalate[Escalate]
+    
+    Close --> End([End])
+
+# =============================================================================
+# 9. COMMUNICATION PROTOCOL
+# =============================================================================
+
+flowchart LR
+    subgraph Downward["Downward Flow (Delegation)"]
+        D1[CTO] -->|TASK_ASSIGNMENT| D2[Dept Head]
+        D2 -->|TASK_ASSIGNMENT| D3[Worker]
+    end
+    
+    subgraph Upward["Upward Flow (Reporting)"]
+        U1[Worker] -->|PROGRESS_UPDATE| U2[Dept Head]
+        U2 -->|COMPLETION_REPORT| U3[CTO]
+        U1 -.->|ESCALATION| U2
+        U2 -.->|ESCALATION| U3
+    end
+    
+    subgraph Horizontal["Horizontal (Coordination)"]
+        H1[Dept A] <-->|DEPENDENCY_REQUEST| H2[Dept B]
+    end
+
+# =============================================================================
+# 10. RETRY MECHANISM
+# =============================================================================
+
+flowchart TD
+    Error[Error Occurs] --> Classify[Classify Error Type]
+    Classify --> Policy{Get Retry Policy}
+    
+    Policy -->|Recoverable| Recov[Max Retries: 3]
+    Policy -->|Validation| Val[Max Retries: 1]
+    Policy -->|Execution| Exec[Max Retries: 2]
+    Policy -->|Critical| Crit[No Retry]
+    
+    Recov --> CheckCount{Retry Count?}
+    Val --> CheckCount
+    Exec --> CheckCount
+    
+    CheckCount -->|Under Limit| Calc[Calculate Delay]
+    Calc --> Formula[delay = mininitial×2^attempt, max]
+    Formula --> Jitter[Add Jitter]
+    Jitter --> Wait[Wait]
+    Wait --> Retry[Retry Task]
+    Retry --> Success{Success?}
+    
+    Success -->|Yes| Resume[Resume Normal Flow]
+    Success -->|No| Error
+    
+    CheckCount -->|Max Reached| Escalate[Escalate to Supervisor]
+    Crit --> Escalate
+    
+    Escalate --> Decide{Supervisor Decision}
+    Decide -->|Reassign| Reassign[Reassign Task]
+    Decide -->|Cancel| Cancel[Cancel Task]
